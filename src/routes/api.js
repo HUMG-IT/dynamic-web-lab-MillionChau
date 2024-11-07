@@ -6,9 +6,9 @@
  * - Tính và phân loại chỉ số BMI từ dữ liệu người dùng.
  */
 
-const express = require('express');
-const router = express.Router();
-const { submitName } = require('../controllers/nameController');
+const express = require('express')
+const router = express.Router()
+const { submitName } = require('../controllers/nameController')
 // TODO: Import hàm `getBMI` từ `bmiController` để xử lý yêu cầu tính chỉ số BMI
 
 /**
@@ -21,7 +21,7 @@ const { submitName } = require('../controllers/nameController');
  * @access Public
  * @returns {Object} JSON - Trả về thông điệp chào và danh sách tên.
  */
-router.post('/submit', submitName);
+router.post('/submit', submitName)
 
 /**
  * Route cho endpoint `/bmi`
@@ -34,5 +34,6 @@ router.post('/submit', submitName);
  * @returns {Object} JSON - Trả về chỉ số BMI và phân loại.
  */
 // TODO: Định nghĩa route POST cho `/bmi`, sử dụng hàm `getBMI` từ `bmiController` để xử lý yêu cầu
-
-module.exports = router;
+const getBMI = require('../controllers/bmiController')
+router.post('/bmi', getBMI)
+module.exports = router
