@@ -84,6 +84,50 @@ Nếu hiện phiên bản mà không báo lỗi thì đã cài đặt thành cô
   ```
 
 3. Cấu hình `package.json` để thêm `jest` và các lệnh kiểm thử:
+- Tạo file `prestart.js` để xử lí kill port với HĐH window
+```js
+const { exec } = require("child_process");
+const os = require("os");
+
+// Hàm dừng ứng dụng đang nghe trên cổng 3000
+function killPort3000() {
+  if (os.platform() === "darwin" || os.platform() === "linux") {
+    // MacOS hoặc Linux
+    exec("lsof -i :3000 | grep LISTEN | awk '{print $2}' | xargs kill -9 || true", (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Lỗi khi dừng cổng 3000 trên macOS/Linux: ${error}`);
+        return;
+      }
+      console.log("Đã dừng ứng dụng trên cổng 3000 (macOS/Linux).");
+    });
+  } else if (os.platform() === "win32") {
+    // Windows
+    exec("netstat -aon | findstr :3000", (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Lỗi khi tìm kiếm cổng 3000 trên Windows: ${error}`);
+        return;
+      }
+      const lines = stdout.trim().split("\n");
+      lines.forEach(line => {
+        const parts = line.trim().split(/\s+/);
+        const pid = parts[parts.length - 1]; // PID là giá trị cuối
+        exec(`taskkill /F /PID ${pid}`, (killError, killStdout, killStderr) => {
+          if (killError) {
+            console.error(`Lỗi khi dừng cổng 3000 trên Windows: ${killError}`);
+            return;
+          }
+          console.log(`Đã dừng ứng dụng trên cổng 3000 (Windows), PID: ${pid}.`);
+        });
+      });
+    });
+  } else {
+    console.log("Hệ điều hành không được hỗ trợ.");
+  }
+}
+
+killPort3000();
+```
+- file `package.json`
   ```json
   {
     "name": "dynamic_web_lab",
@@ -295,7 +339,95 @@ Nâng cấp mã của ứng dụng này để cho phép Tính chỉ số BMI tr�
 
 #### Gợi ý cách thực hiện
 1. **Frontend**: Bổ sung form Tính chỉ số BMI (cho phép nhập chiều cao, cân nặng) và gửi dữ liệu này đến server.
+- Thêm selection render ra giao diện nhập các chỉ số weight, height
+```html
+</section>
+    <!-- Form Tính BMI -->
+    <!-- TODO: Tạo một section mới với tiêu đề "Tính chỉ số BMI" -->
+    <!-- TODO: Tạo form với id là "bmiForm" -->
+    <!-- TODO: Thêm input cho chiều cao -->
+    <!-- TODO: Thêm input cho cân nặng -->
+    <!-- TODO: Thêm nút submit để tính BMI -->
+    <!-- TODO: Thêm một phần tử <p> với id là "bmiResult" để hiển thị kết quả -->
+        <h2>Tính chỉ số BMI</h2>
+        <form id="bmiForm">
+            <label for="height">Chiều cao</label>
+            <input type="number" id="height" name="height" required>
+            <label for="weight">Cân nặng</label>
+            <input type="number" id="weight" name="weight" required>
+            
+            <button type="submit">Tính BMI</button>
+        </form>
+        <p id="bmiResult"></p>
+    </section>
+  ```
 2. **Backend**: Tính toán chỉ số BMI dựa trên dữ liệu từ frontend, phân loại kết quả và gửi lại phản hồi là chỉ số BMI cùng với phân loại.
+-  Định nghĩa route POST cho `/bmi`, sử dụng hàm `getBMI` từ `bmiController` để xử lý yêu cầu
+```js
+const getBMI = require('../controllers/bmiController')
+router.post('/bmi', getBMI)
+```
+- Xây dựng bmiController trong file `bmiController.js`
+```js
+// Import các hàm calculateBMI và classifyBMI từ bmi.js
+const { calculateBMI, classifyBMI } = require('../models/bmi')
+
+// Hàm getBMI xử lý yêu cầu từ client
+// Trả về JSON chứa bmi và classification
+// Sử dụng async để xử lí bất đồng bộ
+async function getBMI(req, res, next) {
+    try {
+        const height = req.body.height
+        const weight = req.body.weight
+        
+        // Kiểm tra trường hợp không nhập đủ dữ liệu
+        if (!weight || !height) {
+            return res.status(400).json({ error: "Vui lòng nhập đầy đủ cân nặng và chiều cao" })
+        }
+
+        // Gọi hàm tính BMI
+        const bmi = calculateBMI(weight, height)
+        // Gọi hàm xét loại BMI
+        const classification = classifyBMI(bmi)
+
+        // Gửi phản hồi với mã 200 cho client
+        res.status(200).json({ bmi, classification })
+    } catch (error) {
+        next(error)
+    }
+}
+
+
+// Xuất hàm getBMI
+module.exports = getBMI
+```
+- Xây dựng các function calculateBMI classifyBMI để tính toán và xét loại BMI trong file `bmi.js`
+```js
+// Tính chỉ số BMI dựa trên cân nặng và chiều cao, trả về hệ số BMI với 2 số sau dấu phẩy
+// 1. Định nghĩa hàm calculateBMI để tính chỉ số BMI:
+// - Viết một hàm calculateBMI nhận hai tham số là weight (cân nặng, đơn vị kg) và height (chiều cao, đơn vị cm).
+// - Sử dụng công thức tính BMI: BMI = weight / (height / 100)^2.
+// - Đảm bảo kết quả của chỉ số BMI được giới hạn ở hai chữ số thập phân bằng .toFixed(2).
+const calculateBMI = (weight, height) => {
+    return (weight / ((height / 100) ** 2)).toFixed(2)
+}
+// Phân loại theo chỉ số BMI
+// 2. Định nghĩa hàm classifyBMI để phân loại chỉ số BMI:
+// - Viết hàm classifyBMI nhận một tham số là bmi, là kết quả từ hàm calculateBMI.
+// - Sử dụng các điều kiện để phân loại bmi:
+//    - BMI dưới 18.5 là "Gầy".
+//    - BMI từ 18.5 đến 24.9 là "Bình thường".
+//    - BMI từ 25 đến 29.9 là "Thừa cân".
+//    - BMI từ 30 trở lên là "Béo phì".
+const classifyBMI = (bmi) => {
+    if (bmi < 18.5) return 'Gầy'
+    if (bmi >= 18.5 && bmi < 25) return 'Bình thường'
+    if (bmi >= 25 && bmi < 30) return 'Thừa cân'
+    return 'Béo phì'
+}
+// Xuất các hàm calculateBMI và classifyBMI
+module.exports = {calculateBMI, classifyBMI}
+```
 3. **Lưu ý**: Tham khảo cấu trúc thư mục và tệp tin cùng giao diện mong đợi của ứng dụng ở trên. Các tệp cần bổ sung và cập nhật bao gồm `public/index.html`, `public/js/script.js`, `src/controllers/bmiController.js`, `src/models/bmi.js`, `src/routes/api.js`
 #### Chuẩn bị trước khi giao nộp
 - Sau khi viết xong ứng dụng, hãy thực hiện kiểm tra bằng cách thực thi ứng dụng:
@@ -308,14 +440,23 @@ Nâng cấp mã của ứng dụng này để cho phép Tính chỉ số BMI tr�
   ```bash
   npm test
   ```
+  ```img
+  ![alt text](image.png)
+  ```
 - Thực hiện kiểm thử bằng Cypress:
   ```bash
   npm run start & npm run cypress:run
+  ```
+  ```img
+  ![alt text](image-1.png)
   ```
 - Thực hiện kiểm thử bằng Selenium:
   ```bash
   node test/selenium_test.js
   ```
+```img
+![alt text](image-2.png)
+```  
   
 ### Giao nộp
 - Chạy thử ứng dụng: Đảm bảo rằng ứng dụng hiển thị đúng như mong muốn.
