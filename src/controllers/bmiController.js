@@ -3,7 +3,6 @@ const { calculateBMI, classifyBMI } = require('../models/bmi')
 
 // Hàm getBMI xử lý yêu cầu từ client
 // Trả về JSON chứa bmi và classification
-// Sử dụng async để xử lí bất đồng bộ
 async function getBMI(req, res, next) {
     try {
         const height = req.body.height
